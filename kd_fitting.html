@@ -1,0 +1,466 @@
+
+<h2 class="sr-only">Kd fitting app — upload Excel file to fit RNA-protein binding curves</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;color:#222;font-size:13px;background:transparent}
+.top-col{display:flex;flex-direction:column;gap:12px;margin-bottom:1.5rem;max-width:500px}
+.box{border:2px solid #555;border-radius:8px;background:#fff;color:#222}
+.drop-box{padding:20px;cursor:pointer;text-align:center;transition:border-color 0.2s,background 0.2s;border-style:dashed;min-height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.drop-box:hover,.drop-box.over{border-color:#185FA5;background:#f0f6ff}
+.drop-box.done{border-color:#2a8a00;border-style:solid}
+.drop-icon{font-size:28px;color:#888;margin-bottom:6px}
+.drop-box.done .drop-icon{color:#2a8a00}
+.drop-title{font-size:14px;font-weight:600}
+.drop-sub{font-size:11px;color:#666;margin-top:3px}
+.sheet-box{padding:16px 20px;min-height:90px;display:flex;flex-direction:column;justify-content:center}
+.sheet-box label{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;display:block}
+.sheet-box input{width:100%;font-size:14px;padding:8px 10px;border:1.5px solid #aaa;border-radius:6px;background:#fff;color:#222}
+.run-box{min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border-style:solid;padding:12px;transition:background 0.2s;position:relative;overflow:hidden;user-select:none}
+.run-box:not(.disabled):hover{background:#f5f5f5}
+.run-box.disabled{opacity:0.4;cursor:not-allowed}
+.run-box.running{background:#eef4ff;border-color:#185FA5}
+.run-box.done-run{background:#efffed;border-color:#2a8a00}
+.run-label{font-size:13px;font-weight:700;margin-top:8px;letter-spacing:0.03em}
+canvas#runner{display:block}
+.sec-title{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.5rem}
+.metric{background:#f5f5f5;border-radius:8px;padding:10px 12px;text-align:center;border:1px solid #ddd}
+.metric-label{font-size:11px;color:#666;margin-bottom:2px}
+.metric-value{font-size:20px;font-weight:700;color:#111}
+.metric-unit{font-size:11px;color:#888}
+table.rt{width:100%;font-size:12px;border-collapse:collapse;table-layout:fixed}
+table.rt th{background:#eee;padding:6px 8px;text-align:right;font-weight:700;border:1px solid #ccc;font-size:11px;white-space:nowrap}
+table.rt th:first-child{text-align:left;width:130px}
+table.rt td{padding:5px 8px;text-align:right;border:1px solid #ddd;white-space:nowrap}
+table.rt td:first-child{text-align:left;font-weight:600}
+table.rt tr:nth-child(even) td{background:#f9f9f9}
+.summary-row td{background:#e8e8e8!important;font-weight:700!important;font-size:12px}
+.section-header-row td{background:#d0d8e8!important;font-weight:700!important;font-size:12px!important;text-align:left!important;color:#1a3a6a}
+.plots-grid-rep{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.plots-grid-avg{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.plot-wrap{border:1px solid #bbb;border-radius:4px;padding:4px;background:#fff}
+.plot-name{font-size:9px;font-weight:700;margin-bottom:2px;text-align:center}
+.hidden{display:none}
+.section{margin-bottom:2rem}
+.btn-dl{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;font-size:12px;font-weight:600;border:1.5px solid #555;border-radius:6px;background:#fff;color:#222;cursor:pointer;margin-right:8px;margin-bottom:1rem;transition:background 0.15s}
+.btn-dl:hover{background:#f0f0f0}
+.log-line{font-size:11px;color:#666;margin-bottom:8px;min-height:16px}
+</style>
+
+<div style="padding:1rem 0">
+
+<div class="top-col">
+  <div class="drop-box box" id="dropzone" onclick="document.getElementById('fi').click()">
+    <div class="drop-icon">📂</div>
+    <div class="drop-title">Drop Excel file here or click to upload</div>
+    <div class="drop-sub" id="fileStatus">.xlsx — may contain multiple sheets</div>
+  </div>
+  <div class="sheet-box box">
+    <label>Sheet name</label>
+    <input type="text" id="sheetName" value="WTmTat" placeholder="e.g. WTmTat">
+    <div style="font-size:10px;color:#888;margin-top:5px" id="sheetHint"></div>
+  </div>
+  <div class="run-box box disabled" id="runBox" onclick="handleRun()">
+    <canvas id="runner" width="120" height="70"></canvas>
+    <div class="run-label" id="runLabel">Run fitting</div>
+  </div>
+</div>
+<input type="file" id="fi" accept=".xlsx" style="display:none">
+<div id="log" class="log-line"></div>
+
+<div id="results" class="hidden">
+  <div class="section">
+    <div class="sec-title">Summary</div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-label">Mean Kd</div><div class="metric-value" id="mKd">—</div><div class="metric-unit">nM</div></div>
+      <div class="metric"><div class="metric-label">± Std dev</div><div class="metric-value" id="sKd">—</div><div class="metric-unit">nM</div></div>
+      <div class="metric"><div class="metric-label">Mean Fmax</div><div class="metric-value" id="mFmax">—</div><div class="metric-unit">a.u.</div></div>
+      <div class="metric"><div class="metric-label">± Std dev</div><div class="metric-value" id="sFmax">—</div><div class="metric-unit">a.u.</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">All parameters</div>
+    <button class="btn-dl" onclick="downloadCSV()">⬇ Download CSV</button>
+    <button class="btn-dl" onclick="downloadPDF()">⬇ Download plots PDF</button>
+    <div style="overflow-x:auto">
+      <table class="rt" id="mainTbl">
+        <thead>
+          <tr>
+            <th style="text-align:left">#</th>
+            <th>Io</th><th>±</th>
+            <th>I∞</th><th>±</th>
+            <th>Fmax</th><th>±</th>
+            <th>Kd (nM)</th><th>±</th>
+          </tr>
+        </thead>
+        <tbody id="mainTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Overlay — all conditions</div>
+    <div style="max-width:340px"><canvas id="overlayC" width="680" height="560" style="width:340px;height:280px"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Averaged condition plots</div>
+    <div class="plots-grid-avg" id="avgGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Individual replicate plots</div>
+    <div class="plots-grid-rep" id="repGrid"></div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const COLORS=['#111111','#cc0000','#1a9900','#cc6000','#aa00aa'];
+const CNAMES=['Replicate-1','Replicate-2','Replicate-3','Replicate-4','Replicate-5'];
+function repName(i){return'Replicate'+(Math.floor(i/3)+1)+'_'+((i%3)+1)}
+function fmt(v,d=1){return isNaN(v)||v===undefined?'—':Number(v).toFixed(d)}
+function mean(a){return a.reduce((s,x)=>s+x,0)/a.length}
+function std(a){const m=mean(a);return Math.sqrt(a.map(x=>(x-m)**2).reduce((s,x)=>s+x,0)/Math.max(a.length-1,1))}
+
+let wb=null,fits5=[],fits15=[],mData=[],data5=[];
+let animId=null,animState='idle',frame=0;
+const runnerC=document.getElementById('runner');
+const rctx=runnerC.getContext('2d');
+const RW=120,RH=70;
+
+function drawRunner(t,state){
+  rctx.clearRect(0,0,RW,RH);
+  const cx=RW/2,cy=RH/2-4;
+  const c=state==='running'?'#185FA5':state==='done'?'#2a8a00':'#888';
+  rctx.strokeStyle=c;rctx.fillStyle=c;rctx.lineWidth=2.5;rctx.lineCap='round';rctx.lineJoin='round';
+
+  const a=state==='running'?t:0;
+  const legSwing=Math.sin(a)*18;
+  const armSwing=Math.sin(a)*14;
+  const bodyBob=state==='running'?Math.abs(Math.sin(a))*2:0;
+
+  rctx.beginPath();rctx.arc(cx,cy-20-bodyBob,7,0,Math.PI*2);rctx.fill();
+  rctx.beginPath();rctx.moveTo(cx,cy-13-bodyBob);rctx.lineTo(cx,cy+2-bodyBob);rctx.stroke();
+  rctx.beginPath();rctx.moveTo(cx,cy-8-bodyBob);rctx.lineTo(cx+armSwing,cy-2-bodyBob);rctx.stroke();
+  rctx.beginPath();rctx.moveTo(cx,cy-8-bodyBob);rctx.lineTo(cx-armSwing,cy-2-bodyBob);rctx.stroke();
+  rctx.beginPath();rctx.moveTo(cx,cy+2-bodyBob);rctx.lineTo(cx+legSwing*0.6,cy+16-bodyBob);
+  rctx.lineTo(cx+legSwing,cy+28-bodyBob);rctx.stroke();
+  rctx.beginPath();rctx.moveTo(cx,cy+2-bodyBob);rctx.lineTo(cx-legSwing*0.6,cy+16-bodyBob);
+  rctx.lineTo(cx-legSwing,cy+28-bodyBob);rctx.stroke();
+}
+drawRunner(0,'idle');
+
+function startAnim(){
+  animState='running';frame=0;
+  function loop(){animId=requestAnimationFrame(loop);frame+=0.18;drawRunner(frame,'running')}
+  loop();
+}
+function stopAnim(st){
+  if(animId){cancelAnimationFrame(animId);animId=null}
+  animState=st;drawRunner(0,st);
+}
+
+document.getElementById('fi').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    wb=XLSX.read(ev.target.result,{type:'array'});
+    document.getElementById('fileStatus').textContent='✓ '+f.name;
+    document.getElementById('sheetHint').textContent='Sheets: '+wb.SheetNames.join(', ');
+    document.getElementById('dropzone').classList.add('done');
+    document.getElementById('dropzone').querySelector('.drop-icon').textContent='✅';
+    const rb=document.getElementById('runBox');
+    rb.classList.remove('disabled');
+    drawRunner(0,'idle');
+  };
+  r.readAsArrayBuffer(f);
+});
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('over');
+  document.getElementById('fi').files=e.dataTransfer.files;
+  document.getElementById('fi').dispatchEvent(new Event('change'));
+});
+
+function handleRun(){
+  const rb=document.getElementById('runBox');
+  if(rb.classList.contains('disabled'))return;
+  runAnalysis();
+}
+
+function parseRange(s){
+  s=s.trim();
+  if(s.includes('-')){const[a,b]=s.split('-').map(Number);const o=[];for(let i=a;i<=b;i++)o.push(i);return o;}
+  return s.split(',').map(x=>Number(x.trim()));
+}
+function getSheet(name){
+  const ws=wb.Sheets[name];
+  if(!ws)throw new Error('Sheet "'+name+'" not found. Available: '+wb.SheetNames.join(', '));
+  return XLSX.utils.sheet_to_json(ws,{header:1,defval:0});
+}
+function extractRows(data,rows,cols=12){
+  return rows.map(r=>Array.from({length:cols},(_,c)=>Number(data[r-1]?.[c]??0)));
+}
+function binding(TAR,kD,Io,Iinf,Tat){
+  const v=TAR+Tat+kD;return Io+(Iinf-Io)*(v-Math.sqrt(Math.max(0,v*v-4*TAR*Tat)))/(2*Tat);
+}
+function fitLM(xs,ys,Tat){
+  let kD=50,Io=10,Iinf=80,lam=0.01;
+  const n=xs.length;
+  function res(k,io,ii){return xs.map((x,i)=>ys[i]-binding(x,k,io,ii,Tat))}
+  function sse(k,io,ii){return res(k,io,ii).reduce((s,r)=>s+r*r,0)}
+  function jac(k,io,ii){
+    const e=1e-5,J=[];
+    for(let i=0;i<n;i++){const f0=binding(xs[i],k,io,ii,Tat);
+      J.push([(binding(xs[i],k+e,io,ii,Tat)-f0)/e,(binding(xs[i],k,io+e,ii,Tat)-f0)/e,(binding(xs[i],k,io,ii+e,Tat)-f0)/e]);}
+    return J;
+  }
+  function mm(A,B){const r=A.length,c=B[0].length,k=B.length,C=Array.from({length:r},()=>new Array(c).fill(0));for(let i=0;i<r;i++)for(let j=0;j<c;j++)for(let l=0;l<k;l++)C[i][j]+=A[i][l]*B[l][j];return C}
+  function tr(A){return A[0].map((_,c)=>A.map(r=>r[c]))}
+  function inv3(m){const[[a,b,c],[d,e,f],[g,h,ii]]=m,det=a*(e*ii-f*h)-b*(d*ii-f*g)+c*(d*h-e*g);if(Math.abs(det)<1e-14)return null;return[[(e*ii-f*h)/det,(c*h-b*ii)/det,(b*f-c*e)/det],[(f*g-d*ii)/det,(a*ii-c*g)/det,(c*d-a*f)/det],[(d*h-e*g)/det,(b*g-a*h)/det,(a*e-b*d)/det]]}
+  function vm(M,v){return M.map(r=>r.reduce((s,x,i)=>s+x*v[i],0))}
+  let best=sse(kD,Io,Iinf);
+  for(let it=0;it<3000;it++){
+    const J=jac(kD,Io,Iinf),Jt=tr(J),JtJ=mm(Jt,J),r=res(kD,Io,Iinf),Jtr=vm(Jt,r);
+    const A=JtJ.map((row,i)=>row.map((v,j)=>i===j?v*(1+lam):v));
+    const Ai=inv3(A);if(!Ai)break;
+    const d=vm(Ai,Jtr),nk=kD+d[0],nio=Io+d[1],nii=Iinf+d[2],ns=sse(nk,nio,nii);
+    if(ns<best){best=ns;kD=nk;Io=nio;Iinf=nii;lam*=0.5}else lam*=4;
+    if(Math.abs(d[0])<1e-9&&Math.abs(d[1])<1e-9&&Math.abs(d[2])<1e-9)break;
+  }
+  const J=jac(kD,Io,Iinf),Jt=tr(J),JtJ=mm(Jt,J),s2=sse(kD,Io,Iinf)/Math.max(n-3,1),Ai=inv3(JtJ);
+  const errs=Ai?[Math.sqrt(Math.abs(Ai[0][0]*s2)),Math.sqrt(Math.abs(Ai[1][1]*s2)),Math.sqrt(Math.abs(Ai[2][2]*s2))]:[0,0,0];
+  return{kD,Io,Iinf,errKd:errs[0],errIo:errs[1],errIinf:errs[2]};
+}
+
+function logXpts(n=200){const p=[];for(let i=0;i<n;i++)p.push(Math.pow(10,-2+i*6.7/(n-1)));return p}
+
+function drawPlot(canvas,xData,yData,errData,fitFn,color,kdText,scale=2){
+  const W=canvas.width,H=canvas.height,ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const s=scale;
+  const ml=42*s,mr=10*s,mt=24*s,mb=34*s,pw=W-ml-mr,ph=H-mt-mb;
+  const xMin=-2,xMax=4.65,yMin=-5,yMax=120;
+  function tx(v){return ml+(Math.log10(v)-xMin)/(xMax-xMin)*pw}
+  function ty(v){return mt+ph-(v-yMin)/(yMax-yMin)*ph}
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#111';ctx.lineWidth=1.5*s;ctx.strokeRect(ml,mt,pw,ph);
+  ctx.lineWidth=s;
+  [-2,-1,0,1,2,3,4].forEach(t=>{
+    const x=ml+(t-xMin)/(xMax-xMin)*pw;
+    ctx.strokeStyle='#111';ctx.beginPath();ctx.moveTo(x,mt+ph);ctx.lineTo(x,mt+ph+4*s);ctx.stroke();
+    if([-2,0,2,4].includes(t)){ctx.fillStyle='#111';ctx.font=`${10*s}px Arial`;ctx.textAlign='center';ctx.fillText(t,x,mt+ph+14*s);}
+  });
+  [0,50,100].forEach(t=>{
+    const y=ty(t);
+    ctx.strokeStyle='#111';ctx.beginPath();ctx.moveTo(ml,y);ctx.lineTo(ml-4*s,y);ctx.stroke();
+    ctx.fillStyle='#111';ctx.font=`${10*s}px Arial`;ctx.textAlign='right';ctx.fillText(t,ml-6*s,y+3*s);
+  });
+  ctx.save();ctx.translate(12*s,mt+ph/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#111';ctx.font=`${10*s}px Arial`;ctx.textAlign='center';ctx.fillText('Rel. Int.',0,0);ctx.restore();
+  ctx.fillStyle='#111';ctx.font=`${10*s}px Arial`;ctx.textAlign='center';
+  ctx.fillText('Log[RNA (nM)]',ml+pw/2,H-4*s);
+  const xPts=logXpts();
+  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.8*s;
+  xPts.forEach((x,i)=>{const fx=tx(x),fy=ty(fitFn(x));i===0?ctx.moveTo(fx,fy):ctx.lineTo(fx,fy)});ctx.stroke();
+  if(errData){
+    errData.forEach(p=>{
+      const px=tx(p.x),py=ty(p.y),ey=p.err*(ph/(yMax-yMin));
+      ctx.strokeStyle=color;ctx.lineWidth=s;
+      ctx.beginPath();ctx.moveTo(px,py-ey);ctx.lineTo(px,py+ey);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(px-3*s,py-ey);ctx.lineTo(px+3*s,py-ey);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(px-3*s,py+ey);ctx.lineTo(px+3*s,py+ey);ctx.stroke();
+    });
+  }
+  xData.forEach((x,i)=>{
+    ctx.beginPath();ctx.fillStyle=color;ctx.arc(tx(x),ty(yData[i]),4*s,0,Math.PI*2);ctx.fill();
+  });
+  ctx.fillStyle='#111';ctx.font=`bold ${10*s}px Arial`;ctx.textAlign='left';
+  ctx.fillText(kdText,ml+4*s,mt+14*s);
+}
+
+let allCanvases=[];
+
+function runAnalysis(){
+  if(!wb)return;
+  const rb=document.getElementById('runBox');
+  rb.classList.add('running');
+  document.getElementById('runLabel').textContent='Fitting...';
+  startAnim();
+  document.getElementById('log').textContent='Reading data...';
+  document.getElementById('results').classList.add('hidden');
+
+  setTimeout(()=>{
+    try{
+      const sheet=document.getElementById('sheetName').value.trim();
+      const Tat=20;
+      const data=getSheet(sheet);
+      const intNorm=extractRows(data,parseRange('17-31')),RNAconc=extractRows(data,parseRange('50-64'));
+      const intAvg=extractRows(data,parseRange('33,36,39,42,45'));
+      const intAvgErr=extractRows(data,parseRange('34,37,40,43,46'));
+      const RNAconc1=extractRows(data,parseRange('50,53,56,59,62'));
+      const nRep=intNorm.length,nAvg=intAvg.length;
+      data5=intNorm.map((row,i)=>({xs:RNAconc[i],ys:row}));
+      mData=intAvg.map((row,i)=>({xs:RNAconc1[i],ys:row,errs:intAvgErr[i]}));
+      fits15=data5.map(d=>fitLM(d.xs,d.ys,Tat));
+      fits5=mData.map(d=>fitLM(d.xs,d.ys,Tat));
+      const kds5=fits5.map(f=>f.kD),fmaxs5=fits5.map(f=>f.Iinf-f.Io);
+      const mk=mean(kds5),sk=std(kds5),mf=mean(fmaxs5),sf=std(fmaxs5);
+      document.getElementById('mKd').textContent=fmt(mk,1);
+      document.getElementById('sKd').textContent=fmt(sk,1);
+      document.getElementById('mFmax').textContent=fmt(mf,1);
+      document.getElementById('sFmax').textContent=fmt(sf,1);
+
+      const tb=document.getElementById('mainTbody');tb.innerHTML='';
+      function addSectionHeader(label){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td colspan="9" class="section-header-row" style="font-weight:700;font-size:12px;padding:6px 8px;background:#d0d8e8;color:#1a3a6a">${label}</td>`;
+        tb.appendChild(tr);
+      }
+      function addSummaryRow(label,vals){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td style="font-weight:700;background:#e0e0e0;font-size:12px">${label}</td>`+vals.map(v=>`<td style="font-weight:700;background:#e0e0e0">${v}</td>`).join('');
+        tb.appendChild(tr);
+      }
+      addSectionHeader('Averaged conditions (mean of 3 replicates each)');
+      fits5.forEach((f,i)=>{
+        const fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td style="color:${COLORS[i]};font-weight:700">${CNAMES[i]}</td><td>${fmt(f.Io,2)}</td><td>${fmt(f.errIo,2)}</td><td>${fmt(f.Iinf,2)}</td><td>${fmt(f.errIinf,2)}</td><td>${fmt(fm,2)}</td><td>${fmt(fme,2)}</td><td>${fmt(f.kD,1)}</td><td>${fmt(f.errKd,1)}</td>`;
+        tb.appendChild(tr);
+      });
+      addSummaryRow('Mean ± SD',[
+        fmt(mean(fits5.map(f=>f.Io)),2),fmt(std(fits5.map(f=>f.Io)),2),
+        fmt(mean(fits5.map(f=>f.Iinf)),2),fmt(std(fits5.map(f=>f.Iinf)),2),
+        fmt(mf,2),fmt(sf,2),
+        fmt(mk,1),fmt(sk,1)
+      ]);
+
+      addSectionHeader('All 15 individual replicates');
+      fits15.forEach((f,i)=>{
+        const ci=Math.floor(i/3),fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td style="color:${COLORS[ci]};font-weight:600">${repName(i)}</td><td>${fmt(f.Io,2)}</td><td>${fmt(f.errIo,2)}</td><td>${fmt(f.Iinf,2)}</td><td>${fmt(f.errIinf,2)}</td><td>${fmt(fm,2)}</td><td>${fmt(fme,2)}</td><td>${fmt(f.kD,1)}</td><td>${fmt(f.errKd,1)}</td>`;
+        tb.appendChild(tr);
+      });
+      addSummaryRow('Mean ± SD',[
+        fmt(mean(fits15.map(f=>f.Io)),2),fmt(std(fits15.map(f=>f.Io)),2),
+        fmt(mean(fits15.map(f=>f.Iinf)),2),fmt(std(fits15.map(f=>f.Iinf)),2),
+        fmt(mean(fits15.map(f=>f.Iinf-f.Io)),2),fmt(std(fits15.map(f=>f.Iinf-f.Io)),2),
+        fmt(mean(fits15.map(f=>f.kD)),1),fmt(std(fits15.map(f=>f.kD)),1)
+      ]);
+
+      allCanvases=[];
+      const oc=document.getElementById('overlayC');
+      const W=680,H=560,ml=84,mr=20,mt=48,mb=68,pw=W-ml-mr,ph=H-mt-mb;
+      const s=2,xMin=-2,xMax=4.65,yMin=-5,yMax=120;
+      function tx(v){return ml+(Math.log10(v)-xMin)/(xMax-xMin)*pw}
+      function ty(v){return mt+ph-(v-yMin)/(yMax-yMin)*ph}
+      const octx=oc.getContext('2d');
+      octx.clearRect(0,0,W,H);
+      octx.fillStyle='#fff';octx.fillRect(0,0,W,H);
+      octx.strokeStyle='#111';octx.lineWidth=3;octx.strokeRect(ml,mt,pw,ph);
+      octx.lineWidth=2;
+      [-2,-1,0,1,2,3,4].forEach(t=>{
+        const x=ml+(t-xMin)/(xMax-xMin)*pw;
+        octx.strokeStyle='#111';octx.beginPath();octx.moveTo(x,mt+ph);octx.lineTo(x,mt+ph+8);octx.stroke();
+        if([-2,0,2,4].includes(t)){octx.fillStyle='#111';octx.font='20px Arial';octx.textAlign='center';octx.fillText(t,x,mt+ph+28);}
+      });
+      [0,50,100].forEach(t=>{
+        const y=ty(t);octx.strokeStyle='#111';octx.beginPath();octx.moveTo(ml,y);octx.lineTo(ml-8,y);octx.stroke();
+        octx.fillStyle='#111';octx.font='20px Arial';octx.textAlign='right';octx.fillText(t,ml-12,y+6);
+      });
+      octx.save();octx.translate(22,mt+ph/2);octx.rotate(-Math.PI/2);
+      octx.fillStyle='#111';octx.font='20px Arial';octx.textAlign='center';octx.fillText('Rel. Int.',0,0);octx.restore();
+      octx.fillStyle='#111';octx.font='20px Arial';octx.textAlign='center';octx.fillText('Log[RNA (nM)]',ml+pw/2,H-8);
+      const xPts=logXpts(300);
+      [...fits5].reverse().forEach((f,ri)=>{
+        const i=nAvg-1-ri,col=COLORS[i];
+        octx.beginPath();octx.strokeStyle=col;octx.lineWidth=3;
+        xPts.forEach((x,k)=>{const fx=tx(x),fy=ty(binding(x,f.kD,f.Io,f.Iinf,Tat));k===0?octx.moveTo(fx,fy):octx.lineTo(fx,fy)});octx.stroke();
+        mData[i].errs.forEach((e,j)=>{
+          const px=tx(mData[i].xs[j]),py=ty(mData[i].ys[j]),ey=e*(ph/(yMax-yMin));
+          octx.strokeStyle=col;octx.lineWidth=2;
+          octx.beginPath();octx.moveTo(px,py-ey);octx.lineTo(px,py+ey);octx.stroke();
+          octx.beginPath();octx.moveTo(px-6,py-ey);octx.lineTo(px+6,py-ey);octx.stroke();
+          octx.beginPath();octx.moveTo(px-6,py+ey);octx.lineTo(px+6,py+ey);octx.stroke();
+        });
+        mData[i].xs.forEach((x,j)=>{octx.beginPath();octx.fillStyle=col;octx.arc(tx(x),ty(mData[i].ys[j]),7,0,Math.PI*2);octx.fill()});
+      });
+      octx.fillStyle='#111';octx.font='bold 20px Arial';octx.textAlign='left';
+      octx.fillText(fmt(mk,1)+' \u00b1 '+fmt(sk,1)+' nM',ml+8,mt+26);
+      allCanvases.push({canvas:oc,label:'Overlay'});
+
+      const avgGrid=document.getElementById('avgGrid');avgGrid.innerHTML='';
+      fits5.forEach((f,i)=>{
+        const wrap=document.createElement('div');wrap.className='plot-wrap';
+        const nm=document.createElement('div');nm.className='plot-name';
+        nm.style.color=COLORS[i];nm.textContent=CNAMES[i];
+        const cv=document.createElement('canvas');cv.width=320;cv.height=280;
+        cv.style.width='100%';cv.style.height='auto';
+        wrap.appendChild(nm);wrap.appendChild(cv);avgGrid.appendChild(wrap);
+        drawPlot(cv,mData[i].xs,mData[i].ys,mData[i].errs.map((e,j)=>({x:mData[i].xs[j],y:mData[i].ys[j],err:e})),x=>binding(x,f.kD,f.Io,f.Iinf,Tat),COLORS[i],fmt(f.kD,1)+' \u00b1 '+fmt(f.errKd,1)+' nM');
+        allCanvases.push({canvas:cv,label:CNAMES[i]});
+      });
+
+      const repGrid=document.getElementById('repGrid');repGrid.innerHTML='';
+      fits15.forEach((f,i)=>{
+        const ci=Math.floor(i/3);
+        const wrap=document.createElement('div');wrap.className='plot-wrap';
+        const nm=document.createElement('div');nm.className='plot-name';
+        nm.style.color=COLORS[ci];nm.textContent=repName(i);
+        const cv=document.createElement('canvas');cv.width=320;cv.height=280;
+        cv.style.width='100%';cv.style.height='auto';
+        wrap.appendChild(nm);wrap.appendChild(cv);repGrid.appendChild(wrap);
+        drawPlot(cv,data5[i].xs,data5[i].ys,null,x=>binding(x,f.kD,f.Io,f.Iinf,Tat),COLORS[ci],fmt(f.kD,1)+' \u00b1 '+fmt(f.errKd,1)+' nM');
+        allCanvases.push({canvas:cv,label:repName(i)});
+      });
+
+      document.getElementById('results').classList.remove('hidden');
+      stopAnim('done');
+      rb.classList.remove('running');rb.classList.add('done-run');
+      document.getElementById('runLabel').textContent='Done ✓';
+      document.getElementById('log').textContent='Fitting complete.';
+    }catch(e){
+      stopAnim('idle');
+      document.getElementById('runBox').classList.remove('running');
+      document.getElementById('runLabel').textContent='Run fitting';
+      document.getElementById('log').textContent='Error: '+e.message;
+    }
+  },80);
+}
+
+function downloadCSV(){
+  const rows=[['#','Io','±Io','I∞','±I∞','Fmax','±Fmax','Kd(nM)','±Kd']];
+  rows.push(['--- Averaged conditions ---']);
+  fits5.forEach((f,i)=>{const fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);rows.push([CNAMES[i],fmt(f.Io,2),fmt(f.errIo,2),fmt(f.Iinf,2),fmt(f.errIinf,2),fmt(fm,2),fmt(fme,2),fmt(f.kD,1),fmt(f.errKd,1)])});
+  rows.push(['--- All replicates ---']);
+  fits15.forEach((f,i)=>{const ci=Math.floor(i/3),fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);rows.push([repName(i),fmt(f.Io,2),fmt(f.errIo,2),fmt(f.Iinf,2),fmt(f.errIinf,2),fmt(fm,2),fmt(fme,2),fmt(f.kD,1),fmt(f.errKd,1)])});
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='kd_parameters.csv';a.click();
+}
+
+function downloadPDF(){
+  if(!allCanvases.length){alert('Run fitting first.');return;}
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+  const pw=doc.internal.pageSize.getWidth(),ph=doc.internal.pageSize.getHeight();
+  const margin=10,cols=3,rows=3,cw=(pw-margin*(cols+1))/cols,ch=(ph-margin*(rows+1))/rows;
+  allCanvases.forEach((obj,idx)=>{
+    if(idx>0&&idx%9===0)doc.addPage();
+    const col=idx%3,row=Math.floor((idx%9)/3);
+    const x=margin+col*(cw+margin),y=margin+row*(ch+margin);
+    const img=obj.canvas.toDataURL('image/png',1.0);
+    doc.addImage(img,'PNG',x,y,cw,ch);
+    doc.setFontSize(7);doc.text(obj.label,x+1,y+ch-1);
+  });
+  doc.save('kd_plots.pdf');
+}
+</script>
