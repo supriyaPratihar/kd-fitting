@@ -1,0 +1,572 @@
+
+<h2 class="sr-only">Kd fitting app</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;color:#222;font-size:13px}
+.app-header{background:#e8f0fe;padding:16px 20px;margin-bottom:20px;border-radius:8px;text-align:center}
+.app-header h1{font-size:22px;font-weight:600;color:#2c4a8a}
+.layout{display:flex;gap:20px;align-items:stretch;margin-bottom:1.5rem}
+.top-col{display:flex;flex-direction:column;gap:12px;width:50%;flex-shrink:0}
+.photo-area{flex:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:340px;background:#f5f5f5;overflow:hidden}
+.photo-area img{width:100%;height:100%;object-fit:contain;display:block;border-radius:8px}
+.photo-placeholder{text-align:center;padding:20px}
+.photo-placeholder div{font-size:36px;margin-bottom:10px}
+.photo-placeholder p{font-size:14px;color:#aaa}
+.upload-box{padding:22px 22px 14px;text-align:center;min-height:100px;background:#f0f4ff;border-radius:10px 10px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.drop-icon{font-size:30px;margin-bottom:6px}
+.drop-title{font-size:19px;font-weight:600;color:#222;line-height:1.4}
+.click-link{color:#185FA5;cursor:pointer;text-decoration:underline;font-weight:600}
+.drop-sub{font-size:14px;color:#666;margin-top:3px}
+.test-link{font-size:19px;font-weight:600;color:#185FA5;cursor:pointer;text-decoration:underline;margin-top:8px;display:inline-block}
+.dl-test{font-size:13px;color:#888;cursor:pointer;text-decoration:underline;margin-top:4px;display:inline-block}
+.sheet-row{display:flex;gap:10px;align-items:center;padding:10px 20px 14px;background:#f0f4ff;border-radius:0 0 10px 10px}
+.sheet-row label{font-size:16px;font-weight:700;color:#444;white-space:nowrap;flex-shrink:0}
+.sheet-row input{flex:1;font-size:18px;padding:8px 12px;border:1.5px solid #bbc8f0;border-radius:6px;background:#fff;color:#222}
+.sheet-hint{font-size:12px;color:#888;padding:0 20px 8px;background:#f0f4ff;border-radius:0 0 10px 10px;margin-top:-8px}
+.run-box{min-height:110px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:8px 16px;transition:background .2s;position:relative;overflow:hidden;border-radius:10px;background:#e8f0fe}
+.run-box.disabled{opacity:.4;cursor:not-allowed}
+.run-box.running{background:#ddeeff}
+.run-box.done-run{background:#e6faf0}
+.run-label{font-size:42px;font-weight:900;color:#1a3a8a;position:absolute;z-index:2;pointer-events:none;text-shadow:0 0 20px #e8f0fe,0 0 20px #e8f0fe,0 0 20px #e8f0fe}
+.sec-title{font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+
+/* Overlay section — 3-column layout */
+.overlay-section{display:flex;gap:14px;align-items:stretch;margin-bottom:1.5rem}
+.overlay-plot-col{flex-shrink:0}
+.overlay-mid-col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:160px}
+.summary-box{background:#f0f4ff;border-radius:10px;padding:14px 18px;flex:1}
+.summary-line{font-size:16px;font-weight:500;color:#222;line-height:1.9}
+.scroll-hint{border-radius:8px;background:#e8f0fe;padding:10px 14px;font-size:12px;color:#1a3a6a;font-weight:600;text-align:center;line-height:1.5}
+.dl-col{display:flex;flex-direction:column;gap:8px;justify-content:center;flex-shrink:0;width:200px}
+
+/* Download buttons — no overflow, wider arrow */
+.btn-dl{display:flex;align-items:center;gap:0;font-size:12px;font-weight:600;border:1.5px solid #bbb;border-radius:8px;background:#fff;color:#222;cursor:pointer;transition:background .15s;width:100%;overflow:hidden;min-height:52px}
+.btn-dl:hover{background:#f5f5f5}
+.btn-dl .arrow-zone{width:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#fff0ee;border-right:3px solid #cc2200;align-self:stretch;font-size:20px;color:#cc2200;animation:bounceDown 1s infinite}
+@keyframes bounceDown{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+.btn-dl .btn-text{flex:1;text-align:left;line-height:1.3;padding:8px 10px;white-space:normal;word-break:break-word}
+
+/* Table */
+table.rt{font-size:12px;border-collapse:collapse;table-layout:auto;width:auto}
+table.rt th{background:#eee;padding:6px 10px;text-align:right;font-weight:700;border:1px solid #ccc;font-size:11px;white-space:nowrap}
+table.rt th:first-child{text-align:left}
+table.rt td{padding:5px 10px;text-align:right;border:1px solid #ddd;white-space:nowrap}
+table.rt td:first-child{text-align:left;font-weight:600}
+table.rt tr:nth-child(even) td{background:#f9f9f9}
+.sec-header-row td{background:#d0d8e8!important;font-weight:700!important;color:#1a3a6a;text-align:left!important;padding:6px 10px!important;font-size:12px!important}
+.sum-row td{background:#e4e4e4!important;font-weight:700!important}
+.kd-cell{position:relative;padding:0!important;min-width:80px}
+.kd-bar{position:absolute;left:0;top:0;bottom:0;background:#cce4ff;z-index:0}
+.kd-val{position:relative;z-index:1;display:block;padding:5px 10px;text-align:right}
+.plots-5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.plot-wrap{background:transparent;padding:2px}
+.plot-name{font-size:9px;font-weight:700;margin-bottom:2px;text-align:center}
+.hidden{display:none}
+.section{margin-bottom:2rem}
+.log-line{font-size:11px;color:#888;margin-bottom:8px;min-height:16px}
+</style>
+
+<div style="padding:0.5rem 0">
+<div class="app-header">
+  <h1>App for fitting dissociation constant (<i>K</i><sub>d</sub>)</h1>
+</div>
+
+<div class="layout">
+  <div class="top-col">
+    <div style="border-radius:10px;overflow:hidden">
+      <div class="upload-box" id="uploadBox">
+        <div class="drop-icon" id="dropIcon">📂</div>
+        <div class="drop-title">Drop Excel file here or <span class="click-link" onclick="document.getElementById('fi').click()">click</span> to upload</div>
+        <div class="drop-sub" id="fileStatus">.xlsx — may contain multiple sheets</div>
+        <span class="test-link" onclick="loadTestData()">📊 Load test data</span>
+        <span class="dl-test" onclick="downloadTestTemplate()">⬇ Download test data file</span>
+      </div>
+      <div class="sheet-row">
+        <label>Sheet name:</label>
+        <input type="text" id="sheetName" value="variant-1" placeholder="e.g. variant-1">
+      </div>
+      <div class="sheet-hint" id="sheetHint"></div>
+    </div>
+    <div class="run-box disabled" id="runBox" onclick="handleRun()">
+      <div class="run-label" id="runLabel">Run fitting</div>
+      <canvas id="runner" width="500" height="90" style="width:100%;height:90px"></canvas>
+    </div>
+  </div>
+  <div class="photo-area" id="photoArea">
+    <div class="photo-placeholder" id="photoPlaceholder">
+      <div>🖼️</div>
+      <p>Upload <strong>photo.png</strong><br>to your GitHub repo root</p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fi" accept=".xlsx" style="display:none">
+<div id="log" class="log-line"></div>
+
+<div id="results" class="hidden">
+
+  <!-- Overlay section: plot | summary+scroll | downloads -->
+  <div class="section">
+    <div class="sec-title">Overlay all averaged profiles</div>
+    <div class="overlay-section" id="overlaySection">
+      <div class="overlay-plot-col" id="overlayWrap"></div>
+      <div class="overlay-mid-col">
+        <div class="summary-box">
+          <div class="summary-line" id="kdLine">—</div>
+          <div class="summary-line" id="fmaxLine">—</div>
+        </div>
+        <div class="scroll-hint">📋 Scroll down for all fitted parameters</div>
+      </div>
+      <div class="dl-col">
+        <button class="btn-dl" onclick="downloadCSV()">
+          <span class="arrow-zone">⬇</span>
+          <span class="btn-text">Download parameters as CSV</span>
+        </button>
+        <button class="btn-dl" onclick="downloadSVG()">
+          <span class="arrow-zone">⬇</span>
+          <span class="btn-text">Download plots as SVG (editable in Illustrator)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">Averaged profiles</div>
+    <div class="plots-5" id="avgGrid"></div>
+  </div>
+  <div class="section">
+    <div class="sec-title">Individual replicates</div>
+    <div class="plots-5" id="repGrid"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title"><i>K</i><sub>d</sub> bar plots</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <div style="font-size:11px;color:#666;margin-bottom:4px">Averaged conditions (5)</div>
+        <canvas id="barAvg" width="340" height="240" style="width:340px;height:240px"></canvas>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#666;margin-bottom:4px">All replicates (15)</div>
+        <canvas id="barRep" width="560" height="240" style="width:560px;height:240px"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-title">All parameters</div>
+    <div style="overflow-x:auto">
+      <table class="rt" id="mainTbl">
+        <thead><tr>
+          <th style="text-align:left">Parameter</th>
+          <th>I<sub>o</sub></th><th>±</th>
+          <th>I<sub>∞</sub></th><th>±</th>
+          <th>F<sub>max</sub></th><th>±</th>
+          <th><i>K</i><sub>d</sub> (nM)</th><th>±</th>
+        </tr></thead>
+        <tbody id="mainTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const COLORS=['#111111','#cc0000','#1a9900','#cc6000','#aa00aa'];
+const CNAMES=['Replicate-1','Replicate-2','Replicate-3','Replicate-4','Replicate-5'];
+function repName(i){return'Replicate'+(Math.floor(i/3)+1)+'_'+((i%3)+1)}
+function fmt(v,d=1){return isNaN(v)||v===undefined?'—':Number(v).toFixed(d)}
+function mean(a){return a.reduce((s,x)=>s+x,0)/a.length}
+function std(a){const m=mean(a);return Math.sqrt(a.map(x=>(x-m)**2).reduce((s,x)=>s+x,0)/Math.max(a.length-1,1))}
+
+// ── Photo ─────────────────────────────────────────────────────
+['photo.png','photo.jpg','photo.jpeg'].forEach(name=>{
+  const img=new Image();
+  img.onload=()=>{
+    const pa=document.getElementById('photoArea');
+    document.getElementById('photoPlaceholder').style.display='none';
+    pa.innerHTML='';
+    const el=document.createElement('img');
+    el.src=name+'?v='+Date.now();
+    el.style.cssText='width:100%;height:100%;object-fit:contain;display:block;border-radius:8px';
+    pa.appendChild(el);
+  };
+  img.src=name+'?v='+Date.now();
+});
+
+// ── Drag-drop ─────────────────────────────────────────────────
+const ub=document.getElementById('uploadBox');
+ub.addEventListener('dragover',e=>{e.preventDefault();ub.style.background='#d8e6ff'});
+ub.addEventListener('dragleave',()=>ub.style.background='');
+ub.addEventListener('drop',e=>{e.preventDefault();ub.style.background='';const f=e.dataTransfer.files[0];if(f)readFile(f)});
+
+// ── Runner ────────────────────────────────────────────────────
+const RC=document.getElementById('runner');
+const rctx=RC.getContext('2d');
+const RW=500,RH=90;
+let animId=null,frame=0,runX=0;
+function _fig(ctx,cx,cy,t,state){
+  const isRun=state==='running';
+  const c=state==='done'?'#2a8a00':isRun?'#3a7acc':'#8099cc';
+  const ls=isRun?Math.sin(t)*18:0,as=isRun?Math.sin(t)*13:0;
+  const ls2=isRun?Math.sin(t+Math.PI)*18:0,as2=isRun?Math.sin(t+Math.PI)*13:0;
+  const bb=isRun?Math.abs(Math.sin(t))*2:0;
+  ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy-20-bb,7,0,Math.PI*2);ctx.fill();
+  ctx.lineWidth=2;[[-5,-5],[-2,-8],[2,-9],[6,-6],[8,-2]].forEach(([dx,dy])=>{ctx.beginPath();ctx.moveTo(cx+dx,cy-20-bb+dy);ctx.lineTo(cx+dx*1.7,cy-20-bb+dy*1.7);ctx.stroke()});
+  ctx.lineWidth=3.5;ctx.beginPath();ctx.moveTo(cx,cy-13-bb);ctx.lineTo(cx,cy+4-bb);ctx.stroke();
+  ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(cx,cy-8-bb);ctx.lineTo(cx+as,cy-bb);ctx.lineTo(cx+as+5,cy+5-bb);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-8-bb);ctx.lineTo(cx+as2,cy-bb);ctx.lineTo(cx+as2+5,cy+5-bb);ctx.stroke();
+  ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(cx,cy+4-bb);ctx.lineTo(cx+ls*.5,cy+17-bb);ctx.lineTo(cx+ls,cy+32-bb);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy+4-bb);ctx.lineTo(cx+ls2*.5,cy+17-bb);ctx.lineTo(cx+ls2,cy+32-bb);ctx.stroke();
+  ctx.fillStyle=c;
+  ctx.beginPath();ctx.ellipse(cx+ls,cy+33-bb,7,3,ls>0?.25:-.25,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(cx+ls2,cy+33-bb,7,3,ls2>0?.25:-.25,0,Math.PI*2);ctx.fill();
+}
+function drawRunner(t,state,cx){
+  rctx.clearRect(0,0,RW,RH);
+  if(state==='idle'){_fig(rctx,RW/2,46,0,'idle');return;}
+  if(state==='done'){_fig(rctx,RW/2,46,0,'done');return;}
+  rctx.fillStyle='rgba(0,0,0,0.04)';rctx.beginPath();rctx.ellipse(cx,RH-4,12,4,0,0,Math.PI*2);rctx.fill();
+  _fig(rctx,cx,42,t,'running');
+  rctx.strokeStyle='rgba(58,122,204,0.18)';rctx.lineWidth=1.5;rctx.lineCap='round';
+  [0,7,13].forEach(dy=>{rctx.beginPath();rctx.moveTo(cx-22,24+dy);rctx.lineTo(cx-40-dy*.5,24+dy);rctx.stroke()});
+}
+drawRunner(0,'idle',RW/2);
+function startAnim(){runX=28;(function loop(){animId=requestAnimationFrame(loop);frame+=0.22;runX+=1.8;if(runX>RW-28)runX=28;drawRunner(frame,'running',runX)})()}
+function stopAnim(st){if(animId){cancelAnimationFrame(animId);animId=null}drawRunner(0,st,RW/2)}
+
+// ── Files ─────────────────────────────────────────────────────
+let wb=null,fits5=[],fits15=[],mData=[],data5=[];
+document.getElementById('fi').addEventListener('change',e=>{const f=e.target.files[0];if(f)readFile(f)});
+function readFile(f){
+  const r=new FileReader();
+  r.onload=ev=>{
+    wb=XLSX.read(ev.target.result,{type:'array'});
+    document.getElementById('fileStatus').textContent='✓ '+f.name;
+    document.getElementById('sheetHint').textContent='Available sheets: '+wb.SheetNames.join(', ');
+    document.getElementById('dropIcon').textContent='✅';
+    document.getElementById('runBox').classList.remove('disabled');
+    drawRunner(0,'idle',RW/2);
+  };
+  r.readAsArrayBuffer(f);
+}
+function loadTestData(){
+  fetch('test_binding_data.xlsx?v='+Date.now())
+    .then(r=>{if(!r.ok)throw new Error('test_binding_data.xlsx not found — upload to GitHub repo');return r.arrayBuffer()})
+    .then(buf=>{
+      wb=XLSX.read(buf,{type:'array'});
+      document.getElementById('fileStatus').textContent='✓ test_binding_data.xlsx';
+      document.getElementById('sheetHint').textContent='Available sheets: '+wb.SheetNames.join(', ');
+      document.getElementById('sheetName').value=wb.SheetNames[0]||'variant-1';
+      document.getElementById('dropIcon').textContent='✅';
+      document.getElementById('runBox').classList.remove('disabled');
+      drawRunner(0,'idle',RW/2);
+    }).catch(e=>alert(e.message));
+}
+function downloadTestTemplate(){window.open('test_binding_data.xlsx','_blank')}
+function handleRun(){if(!document.getElementById('runBox').classList.contains('disabled'))runAnalysis()}
+
+// ── Math ──────────────────────────────────────────────────────
+function parseRange(s){s=s.trim();if(s.includes('-')){const[a,b]=s.split('-').map(Number);const o=[];for(let i=a;i<=b;i++)o.push(i);return o}return s.split(',').map(x=>Number(x.trim()))}
+function getSheet(n){const ws=wb.Sheets[n];if(!ws)throw new Error('Sheet "'+n+'" not found. Available: '+wb.SheetNames.join(', '));return XLSX.utils.sheet_to_json(ws,{header:1,defval:0})}
+function extractRows(data,rows,cols=12){return rows.map(r=>Array.from({length:cols},(_,c)=>Number(data[r-1]?.[c]??0)))}
+function binding(TAR,kD,Io,Ii,Tat){const v=TAR+Tat+kD;return Io+(Ii-Io)*(v-Math.sqrt(Math.max(0,v*v-4*TAR*Tat)))/(2*Tat)}
+function fitLM(xs,ys,Tat){
+  let kD=50,Io=10,Ii=80,lam=0.01;const n=xs.length;
+  const res=(k,io,ii)=>xs.map((x,i)=>ys[i]-binding(x,k,io,ii,Tat));
+  const sse=(k,io,ii)=>res(k,io,ii).reduce((s,r)=>s+r*r,0);
+  const jac=(k,io,ii)=>{const e=1e-5,J=[];for(let i=0;i<n;i++){const f0=binding(xs[i],k,io,ii,Tat);J.push([(binding(xs[i],k+e,io,ii,Tat)-f0)/e,(binding(xs[i],k,io+e,ii,Tat)-f0)/e,(binding(xs[i],k,io,ii+e,Tat)-f0)/e])}return J};
+  const mm=(A,B)=>{const r=A.length,c=B[0].length,k=B.length,C=Array.from({length:r},()=>new Array(c).fill(0));for(let i=0;i<r;i++)for(let j=0;j<c;j++)for(let l=0;l<k;l++)C[i][j]+=A[i][l]*B[l][j];return C};
+  const tr=A=>A[0].map((_,c)=>A.map(r=>r[c]));
+  const inv3=m=>{const[[a,b,c],[d,e,f],[g,h,ii]]=m,det=a*(e*ii-f*h)-b*(d*ii-f*g)+c*(d*h-e*g);if(Math.abs(det)<1e-14)return null;return[[(e*ii-f*h)/det,(c*h-b*ii)/det,(b*f-c*e)/det],[(f*g-d*ii)/det,(a*ii-c*g)/det,(c*d-a*f)/det],[(d*h-e*g)/det,(b*g-a*h)/det,(a*e-b*d)/det]]};
+  const vm=(M,v)=>M.map(r=>r.reduce((s,x,i)=>s+x*v[i],0));
+  let best=sse(kD,Io,Ii);
+  for(let it=0;it<3000;it++){
+    const J=jac(kD,Io,Ii),Jt=tr(J),JtJ=mm(Jt,J),r=res(kD,Io,Ii),Jtr=vm(Jt,r);
+    const A=JtJ.map((row,i)=>row.map((v,j)=>i===j?v*(1+lam):v));
+    const Ai=inv3(A);if(!Ai)break;
+    const d=vm(Ai,Jtr);
+    const nk=Math.max(0.01,kD+d[0]),nio=Io+d[1],nii=Ii+d[2];
+    const ns=sse(nk,nio,nii);
+    if(ns<best){best=ns;kD=nk;Io=nio;Ii=nii;lam*=0.5}else lam*=4;
+    if(Math.abs(d[0])<1e-9&&Math.abs(d[1])<1e-9&&Math.abs(d[2])<1e-9)break;
+  }
+  const J=jac(kD,Io,Ii),Jt=tr(J),JtJ=mm(Jt,J),s2=sse(kD,Io,Ii)/Math.max(n-3,1),Ai=inv3(JtJ);
+  const errs=Ai?[Math.sqrt(Math.abs(Ai[0][0]*s2)),Math.sqrt(Math.abs(Ai[1][1]*s2)),Math.sqrt(Math.abs(Ai[2][2]*s2))]:[0,0,0];
+  return{kD,Io,Iinf:Ii,errKd:errs[0],errIo:errs[1],errIinf:errs[2]};
+}
+function logXpts(n=250){const p=[];for(let i=0;i<n;i++)p.push(Math.pow(10,-2+i*6.65/(n-1)));return p}
+
+// ── High-res bar chart (2x DPR) ───────────────────────────────
+function drawBarChart(canvas,labels,values,errors,colors){
+  const DPR=2;
+  const CW=canvas.width,CH=canvas.height;
+  canvas.width=CW*DPR;canvas.height=CH*DPR;
+  canvas.style.width=CW+'px';canvas.style.height=CH+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(DPR,DPR);
+  const W=CW,H=CH;
+  const ml=52,mr=15,mt=30,mb=68,gw=W-ml-mr,gh=H-mt-mb;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const maxVal=Math.max(...values.map((v,i)=>v+(errors[i]||0)))*1.25;
+  function ty(v){return mt+gh-v/maxVal*gh}
+  // grid lines
+  ctx.strokeStyle='#e8e8e8';ctx.lineWidth=0.8;
+  [0.25,0.5,0.75,1].forEach(f=>{
+    const y=mt+gh*(1-f);
+    ctx.beginPath();ctx.moveTo(ml,y);ctx.lineTo(ml+gw,y);ctx.stroke();
+    ctx.fillStyle='#888';ctx.font='9px Arial';ctx.textAlign='right';
+    ctx.fillText((maxVal*f).toFixed(0),ml-4,y+3);
+  });
+  // axes
+  ctx.strokeStyle='#333';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(ml,mt);ctx.lineTo(ml,mt+gh);ctx.lineTo(ml+gw,mt+gh);ctx.stroke();
+  // bars
+  const n=values.length;
+  const gap=gw/n;
+  const barW=Math.min(gap*0.62,38);
+  values.forEach((v,i)=>{
+    const bx=ml+gap*i+gap/2-barW/2;
+    const bh=Math.max(0,v/maxVal*gh);
+    const by=ty(v);
+    ctx.fillStyle=colors[i]||'#185FA5';
+    ctx.globalAlpha=0.78;ctx.fillRect(bx,by,barW,bh);
+    ctx.globalAlpha=1;
+    ctx.strokeStyle=colors[i]||'#185FA5';ctx.lineWidth=1;ctx.strokeRect(bx,by,barW,bh);
+    const err=errors[i]||0;
+    if(err>0){
+      const errPx=err/maxVal*gh;
+      const bcx=bx+barW/2;
+      ctx.strokeStyle='#222';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(bcx,by-errPx);ctx.lineTo(bcx,by+errPx);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(bcx-4,by-errPx);ctx.lineTo(bcx+4,by-errPx);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(bcx-4,by+errPx);ctx.lineTo(bcx+4,by+errPx);ctx.stroke();
+      ctx.fillStyle='#333';ctx.font='9px Arial';ctx.textAlign='center';
+      ctx.fillText(v.toFixed(1),bcx,by-errPx-4);
+    } else {
+      ctx.fillStyle='#333';ctx.font='9px Arial';ctx.textAlign='center';
+      ctx.fillText(v.toFixed(1),bx+barW/2,by-5);
+    }
+    ctx.save();
+    ctx.fillStyle=colors[i]||'#333';
+    ctx.font='bold 9px Arial';ctx.textAlign='right';
+    ctx.translate(bx+barW/2,mt+gh+10);ctx.rotate(-Math.PI/4);
+    ctx.fillText(labels[i],0,0);ctx.restore();
+  });
+  ctx.save();ctx.translate(13,mt+gh/2);ctx.rotate(-Math.PI/2);
+  ctx.fillStyle='#444';ctx.font='10px Arial';ctx.textAlign='center';
+  ctx.fillText('Kd (nM)',0,0);ctx.restore();
+}
+
+// ── SVG plots ─────────────────────────────────────────────────
+const PW=230,PH=210,ML=46,MR=10,MT=24,MB=36;
+const GW=PW-ML-MR,GH=PH-MT-MB;
+const XMIN=-2,XMAX=4.65,YMIN=-5,YMAX=120,FS=10;
+const svgX=v=>ML+(Math.log10(v)-XMIN)/(XMAX-XMIN)*GW;
+const svgY=v=>MT+GH-(v-YMIN)/(YMAX-YMIN)*GH;
+function makePlot(xData,yData,errData,fitFn,color,kdText){
+  const xPts=logXpts();
+  let s=`<svg xmlns="http://www.w3.org/2000/svg" width="${PW}" height="${PH}" font-family="Arial" font-size="${FS}">`;
+  s+=`<rect width="${PW}" height="${PH}" fill="white"/>`;
+  s+=`<rect x="${ML}" y="${MT}" width="${GW}" height="${GH}" fill="none" stroke="#111" stroke-width="1.3"/>`;
+  [-2,-1,0,1,2,3,4].forEach(t=>{const x=ML+(t-XMIN)/(XMAX-XMIN)*GW;s+=`<line x1="${x}" y1="${MT+GH}" x2="${x}" y2="${MT+GH+5}" stroke="#111" stroke-width="0.9"/>`;if([-2,0,2,4].includes(t))s+=`<text x="${x}" y="${MT+GH+15}" text-anchor="middle" fill="#111" font-size="${FS}">${t}</text>`});
+  [0,50,100].forEach(t=>{const y=svgY(t);s+=`<line x1="${ML}" y1="${y}" x2="${ML-5}" y2="${y}" stroke="#111" stroke-width="0.9"/>`;s+=`<text x="${ML-7}" y="${y+4}" text-anchor="end" fill="#111" font-size="${FS}">${t}</text>`});
+  s+=`<text x="${ML+GW/2}" y="${PH-3}" text-anchor="middle" fill="#111" font-size="${FS}">Log[RNA (nM)]</text>`;
+  s+=`<text x="11" y="${MT+GH/2}" text-anchor="middle" fill="#111" font-size="${FS}" transform="rotate(-90,11,${MT+GH/2})">Rel. Int.</text>`;
+  const pts=xPts.map(x=>`${svgX(x).toFixed(2)},${svgY(fitFn(x)).toFixed(2)}`).join(' ');
+  s+=`<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6"/>`;
+  if(errData)errData.forEach(p=>{
+    const px=svgX(p.x),py=svgY(p.y),ey=p.err*(GH/(YMAX-YMIN));
+    s+=`<line x1="${px}" y1="${py-ey}" x2="${px}" y2="${py+ey}" stroke="${color}" stroke-width="0.9"/>`;
+    s+=`<line x1="${px-3.5}" y1="${py-ey}" x2="${px+3.5}" y2="${py-ey}" stroke="${color}" stroke-width="0.9"/>`;
+    s+=`<line x1="${px-3.5}" y1="${py+ey}" x2="${px+3.5}" y2="${py+ey}" stroke="${color}" stroke-width="0.9"/>`;
+  });
+  xData.forEach((x,i)=>s+=`<circle cx="${svgX(x).toFixed(2)}" cy="${svgY(yData[i]).toFixed(2)}" r="4" fill="${color}"/>`);
+  s+=`<text x="${ML+5}" y="${MT+15}" font-size="${FS}" font-weight="bold" fill="#111">${kdText}</text>`;
+  s+=`</svg>`;return s;
+}
+function svgToImgEl(svgStr,name,color){
+  const wrap=document.createElement('div');wrap.className='plot-wrap';
+  if(name){const nm=document.createElement('div');nm.className='plot-name';nm.style.color=color||'#111';nm.textContent=name;wrap.appendChild(nm)}
+  const img=document.createElement('img');img.style.cssText='width:100%;display:block';
+  img.src=URL.createObjectURL(new Blob([svgStr],{type:'image/svg+xml'}));
+  wrap.appendChild(img);return wrap;
+}
+let allSVGData=[];
+
+function runAnalysis(){
+  if(!wb)return;
+  const rb=document.getElementById('runBox');
+  rb.classList.add('running');
+  document.getElementById('runLabel').textContent='Fitting...';
+  startAnim();
+  document.getElementById('log').textContent='Reading data...';
+  document.getElementById('results').classList.add('hidden');
+  setTimeout(()=>{
+    try{
+      const sheet=document.getElementById('sheetName').value.trim(),Tat=20;
+      const data=getSheet(sheet);
+      const intNorm=extractRows(data,parseRange('17-31')),RNAconc=extractRows(data,parseRange('50-64'));
+      const intAvg=extractRows(data,parseRange('33,36,39,42,45'));
+      const intAvgErr=extractRows(data,parseRange('34,37,40,43,46'));
+      const RNAconc1=extractRows(data,parseRange('50,53,56,59,62'));
+      data5=intNorm.map((row,i)=>({xs:RNAconc[i],ys:row}));
+      mData=intAvg.map((row,i)=>({xs:RNAconc1[i],ys:row,errs:intAvgErr[i]}));
+      fits15=data5.map(d=>fitLM(d.xs,d.ys,Tat));
+      fits5=mData.map(d=>fitLM(d.xs,d.ys,Tat));
+      const kds5=fits5.map(f=>f.kD),fmaxs5=fits5.map(f=>f.Iinf-f.Io);
+      const mk=mean(kds5),sk=std(kds5),mf=mean(fmaxs5),sf=std(fmaxs5);
+
+      document.getElementById('kdLine').innerHTML='<b><i>K</i><sub>d</sub></b> = '+fmt(mk,1)+' \u00b1 '+fmt(sk,1)+' nM';
+      document.getElementById('fmaxLine').innerHTML='<b>F<sub>max</sub></b> = '+fmt(mf,1)+' \u00b1 '+fmt(sf,1)+' a.u.';
+
+      // Table
+      const allKds=[...fits5.map(f=>f.kD),...fits15.map(f=>f.kD)];
+      const maxKd=Math.max(...allKds);
+      const tb=document.getElementById('mainTbody');tb.innerHTML='';
+      const secHdr=lbl=>{const tr=document.createElement('tr');tr.innerHTML=`<td colspan="9" class="sec-header-row">${lbl}</td>`;tb.appendChild(tr)};
+      const sumRow=(lbl,vals)=>{const tr=document.createElement('tr');tr.innerHTML=`<td class="sum-row" style="font-weight:700">${lbl}</td>`+vals.map(v=>`<td class="sum-row">${v}</td>`).join('');tb.appendChild(tr)};
+      function addRow(name,f,color){
+        const fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);
+        const pct=Math.round(Math.min(f.kD/maxKd*100,100));
+        const tr=document.createElement('tr');
+        tr.innerHTML=
+          `<td style="color:${color};font-weight:700">${name}</td>`+
+          `<td>${fmt(f.Io,2)}</td><td>${fmt(f.errIo,2)}</td>`+
+          `<td>${fmt(f.Iinf,2)}</td><td>${fmt(f.errIinf,2)}</td>`+
+          `<td>${fmt(fm,2)}</td><td>${fmt(fme,2)}</td>`+
+          `<td class="kd-cell"><div class="kd-bar" style="width:${pct}%"></div><span class="kd-val">${fmt(f.kD,1)}</span></td>`+
+          `<td>${fmt(f.errKd,1)}</td>`;
+        tb.appendChild(tr);
+      }
+      secHdr('Averaged conditions');
+      fits5.forEach((f,i)=>addRow(CNAMES[i],f,COLORS[i]));
+      sumRow('Mean \u00b1 SD',[fmt(mean(fits5.map(f=>f.Io)),2),fmt(std(fits5.map(f=>f.Io)),2),fmt(mean(fits5.map(f=>f.Iinf)),2),fmt(std(fits5.map(f=>f.Iinf)),2),fmt(mf,2),fmt(sf,2),fmt(mk,1),fmt(sk,1)]);
+      secHdr('All 15 individual replicates');
+      fits15.forEach((f,i)=>addRow(repName(i),f,COLORS[Math.floor(i/3)]));
+      sumRow('Mean \u00b1 SD',[fmt(mean(fits15.map(f=>f.Io)),2),fmt(std(fits15.map(f=>f.Io)),2),fmt(mean(fits15.map(f=>f.Iinf)),2),fmt(std(fits15.map(f=>f.Iinf)),2),fmt(mean(fits15.map(f=>f.Iinf-f.Io)),2),fmt(std(fits15.map(f=>f.Iinf-f.Io)),2),fmt(mean(fits15.map(f=>f.kD)),1),fmt(std(fits15.map(f=>f.kD)),1)]);
+
+      // Bar charts (high-res)
+      drawBarChart(document.getElementById('barAvg'),CNAMES,fits5.map(f=>f.kD),fits5.map(f=>f.errKd),COLORS);
+      drawBarChart(document.getElementById('barRep'),
+        Array.from({length:15},(_,i)=>repName(i)),
+        fits15.map(f=>f.kD),fits15.map(f=>f.errKd),
+        Array.from({length:15},(_,i)=>COLORS[Math.floor(i/3)]));
+
+      // SVG plots
+      allSVGData=[];
+      let oSvg=`<svg xmlns="http://www.w3.org/2000/svg" width="${PW}" height="${PH}" font-family="Arial" font-size="${FS}">`;
+      oSvg+=`<rect width="${PW}" height="${PH}" fill="white"/>`;
+      oSvg+=`<rect x="${ML}" y="${MT}" width="${GW}" height="${GH}" fill="none" stroke="#111" stroke-width="1.3"/>`;
+      [-2,-1,0,1,2,3,4].forEach(t=>{const x=ML+(t-XMIN)/(XMAX-XMIN)*GW;oSvg+=`<line x1="${x}" y1="${MT+GH}" x2="${x}" y2="${MT+GH+5}" stroke="#111" stroke-width="0.9"/>`;if([-2,0,2,4].includes(t))oSvg+=`<text x="${x}" y="${MT+GH+15}" text-anchor="middle" fill="#111" font-size="${FS}">${t}</text>`});
+      [0,50,100].forEach(t=>{const y=svgY(t);oSvg+=`<line x1="${ML}" y1="${y}" x2="${ML-5}" y2="${y}" stroke="#111" stroke-width="0.9"/>`;oSvg+=`<text x="${ML-7}" y="${y+4}" text-anchor="end" fill="#111" font-size="${FS}">${t}</text>`});
+      oSvg+=`<text x="${ML+GW/2}" y="${PH-3}" text-anchor="middle" fill="#111" font-size="${FS}">Log[RNA (nM)]</text>`;
+      oSvg+=`<text x="11" y="${MT+GH/2}" text-anchor="middle" fill="#111" font-size="${FS}" transform="rotate(-90,11,${MT+GH/2})">Rel. Int.</text>`;
+      const xPts=logXpts(300);
+      [...fits5].reverse().forEach((f,ri)=>{
+        const i=fits5.length-1-ri,col=COLORS[i];
+        const pts=xPts.map(x=>`${svgX(x).toFixed(2)},${svgY(binding(x,f.kD,f.Io,f.Iinf,Tat)).toFixed(2)}`).join(' ');
+        oSvg+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6"/>`;
+        mData[i].errs.forEach((e,j)=>{
+          const px=svgX(mData[i].xs[j]),py=svgY(mData[i].ys[j]),ey=e*(GH/(YMAX-YMIN));
+          oSvg+=`<line x1="${px}" y1="${py-ey}" x2="${px}" y2="${py+ey}" stroke="${col}" stroke-width="0.9"/>`;
+          oSvg+=`<line x1="${px-3.5}" y1="${py-ey}" x2="${px+3.5}" y2="${py-ey}" stroke="${col}" stroke-width="0.9"/>`;
+          oSvg+=`<line x1="${px-3.5}" y1="${py+ey}" x2="${px+3.5}" y2="${py+ey}" stroke="${col}" stroke-width="0.9"/>`;
+        });
+        mData[i].xs.forEach((x,j)=>oSvg+=`<circle cx="${svgX(x).toFixed(2)}" cy="${svgY(mData[i].ys[j]).toFixed(2)}" r="4" fill="${col}"/>`);
+      });
+      oSvg+=`<text x="${ML+5}" y="${MT+15}" font-size="${FS}" font-weight="bold" fill="#111">${fmt(mk,1)} \u00b1 ${fmt(sk,1)} nM</text>`;
+      oSvg+=`</svg>`;
+      allSVGData.push({svg:oSvg,label:'Overlay'});
+      const ow=document.getElementById('overlayWrap');ow.innerHTML='';
+      const oImg=document.createElement('img');oImg.style.cssText='width:100%;border-radius:4px';
+      oImg.src=URL.createObjectURL(new Blob([oSvg],{type:'image/svg+xml'}));ow.appendChild(oImg);
+
+      // Match overlay height to mid+dl columns
+      requestAnimationFrame(()=>{
+        const sec=document.getElementById('overlaySection');
+        const midH=sec.querySelector('.overlay-mid-col').offsetHeight;
+        ow.style.height=midH+'px';
+        ow.style.display='flex';ow.style.alignItems='stretch';
+        const img=ow.querySelector('img');
+        if(img){img.style.height='100%';img.style.objectFit='contain';}
+      });
+
+      const avgGrid=document.getElementById('avgGrid');avgGrid.innerHTML='';
+      fits5.forEach((f,i)=>{
+        const errD=mData[i].errs.map((e,j)=>({x:mData[i].xs[j],y:mData[i].ys[j],err:e}));
+        const svgStr=makePlot(mData[i].xs,mData[i].ys,errD,x=>binding(x,f.kD,f.Io,f.Iinf,Tat),COLORS[i],fmt(f.kD,1)+' \u00b1 '+fmt(f.errKd,1)+' nM');
+        avgGrid.appendChild(svgToImgEl(svgStr,CNAMES[i],COLORS[i]));
+        allSVGData.push({svg:svgStr,label:CNAMES[i],grp:'avg',col:i});
+      });
+
+      const repGrid=document.getElementById('repGrid');repGrid.innerHTML='';
+      repGrid.style.gridTemplateColumns='repeat(5,1fr)';
+      const repCells=new Array(15);
+      for(let grp=0;grp<5;grp++){
+        for(let sub=0;sub<3;sub++){
+          const idx=grp*3+sub,pos=sub*5+grp;
+          const svgStr=makePlot(data5[idx].xs,data5[idx].ys,null,x=>binding(x,fits15[idx].kD,fits15[idx].Io,fits15[idx].Iinf,Tat),COLORS[grp],fmt(fits15[idx].kD,1)+' \u00b1 '+fmt(fits15[idx].errKd,1)+' nM');
+          repCells[pos]=svgToImgEl(svgStr,repName(idx),COLORS[grp]);
+        }
+      }
+      repCells.forEach(c=>repGrid.appendChild(c));
+
+      document.getElementById('results').classList.remove('hidden');
+      stopAnim('done');rb.classList.remove('running');rb.classList.add('done-run');
+      document.getElementById('runLabel').textContent='Done \u2713';
+      document.getElementById('log').textContent='Fitting complete.';
+    }catch(e){
+      stopAnim('idle');document.getElementById('runBox').classList.remove('running');
+      document.getElementById('runLabel').textContent='Run fitting';
+      document.getElementById('log').textContent='Error: '+e.message;
+    }
+  },80);
+}
+
+function downloadCSV(){
+  const rows=[['Parameter','Io','\u00b1Io','I\u221e','\u00b1I\u221e','Fmax','\u00b1Fmax','Kd(nM)','\u00b1Kd']];
+  rows.push(['--- Averaged conditions ---']);
+  fits5.forEach((f,i)=>{const fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);rows.push([CNAMES[i],fmt(f.Io,2),fmt(f.errIo,2),fmt(f.Iinf,2),fmt(f.errIinf,2),fmt(fm,2),fmt(fme,2),fmt(f.kD,1),fmt(f.errKd,1)])});
+  rows.push(['--- All replicates ---']);
+  fits15.forEach((f,i)=>{const fm=f.Iinf-f.Io,fme=Math.sqrt(f.errIo**2+f.errIinf**2);rows.push([repName(i),fmt(f.Io,2),fmt(f.errIo,2),fmt(f.Iinf,2),fmt(f.errIinf,2),fmt(fm,2),fmt(fme,2),fmt(f.kD,1),fmt(f.errKd,1)])});
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));a.download='kd_parameters.csv';a.click();
+}
+
+function downloadSVG(){
+  // Export: overlay + 5 averaged profiles only (no replicates)
+  if(!allSVGData.length){alert('Run fitting first.');return;}
+  const GAP=20,SH=22,LH=18,cols=5;
+  const totalW=GAP+cols*(PW+GAP);
+  const totalH=GAP+(SH+GAP)+(PH+LH+GAP)+(SH+GAP)+(PH+LH+GAP);
+  let master=`<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" font-family="Arial">`;
+  master+=`<rect width="${totalW}" height="${totalH}" fill="#f2f2f2"/>`;
+  let cy=GAP;
+  // Overlay row
+  master+=`<text x="${GAP}" y="${cy+15}" font-size="13" font-weight="bold" fill="#1a3a6a">Overlay all averaged profiles</text>`;
+  cy+=SH+GAP;
+  const ov=allSVGData.find(d=>d.label==='Overlay');
+  if(ov){
+    master+=`<g transform="translate(${GAP},${cy})">${ov.svg.replace(/<svg[^>]*>/,'').replace('</svg>','')}</g>`;
+    master+=`<text x="${GAP+PW/2}" y="${cy+PH+14}" font-size="9" text-anchor="middle" fill="#444">Overlay</text>`;
+  }
+  cy+=PH+LH+GAP;
+  // Averaged profiles row
+  master+=`<text x="${GAP}" y="${cy+15}" font-size="13" font-weight="bold" fill="#1a3a6a">Averaged profiles</text>`;
+  cy+=SH+GAP;
+  allSVGData.filter(d=>d.grp==='avg').sort((a,b)=>a.col-b.col).forEach((item,ci)=>{
+    const x=GAP+ci*(PW+GAP);
+    master+=`<g transform="translate(${x},${cy})">${item.svg.replace(/<svg[^>]*>/,'').replace('</svg>','')}</g>`;
+    master+=`<text x="${x+PW/2}" y="${cy+PH+14}" font-size="9" text-anchor="middle" fill="#444">${item.label}</text>`;
+  });
+  master+=`</svg>`;
+  const a=document.createElement('a');
+  a.href='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(master);
+  a.download='kd_plots.svg';a.click();
+}
+</script>
