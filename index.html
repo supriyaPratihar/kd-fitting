@@ -1,0 +1,236 @@
+
+<h2 class="sr-only">Kd fitting app — upload Excel file and enter sheet name to fit binding curves</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:sans-serif;color:var(--color-text-primary)}
+.wrap{max-width:580px;padding:2rem 0}
+.upload-area{border:2px dashed var(--color-border-secondary);border-radius:12px;padding:3.5rem 2rem;text-align:center;cursor:pointer;transition:background 0.15s;margin-bottom:1.25rem}
+.upload-area:hover,.upload-area.over{background:var(--color-background-secondary)}
+.upload-area svg{display:block;margin:0 auto 1rem;opacity:0.35}
+.upload-title{font-size:16px;color:var(--color-text-primary);font-weight:500;margin-bottom:6px}
+.upload-sub{font-size:13px;color:var(--color-text-tertiary)}
+.file-ok{font-size:13px;color:#1D9E75;margin-top:10px;font-weight:500}
+.row{display:flex;gap:10px;align-items:flex-end}
+.fg{flex:1}
+.fg label{display:block;font-size:12px;color:var(--color-text-secondary);margin-bottom:5px}
+.fg input{width:100%;font-size:14px;padding:9px 11px;border:1px solid var(--color-border-secondary);border-radius:8px;background:var(--color-background-primary);color:var(--color-text-primary)}
+.btn{padding:10px 28px;font-size:14px;font-weight:500;border:none;border-radius:8px;background:#185FA5;color:#fff;cursor:pointer}
+.btn:hover{background:#0C447C}
+.btn:disabled{opacity:0.35;cursor:not-allowed}
+.status{font-size:13px;color:var(--color-text-secondary);margin-top:10px;min-height:16px}
+.hidden{display:none}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.sec{font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.875rem}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.metric{background:var(--color-background-secondary);border-radius:8px;padding:0.875rem;text-align:center}
+.ml{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.mv{font-size:19px;font-weight:500}
+.mu{font-size:11px;color:var(--color-text-tertiary)}
+table.t{width:100%;font-size:12px;border-collapse:collapse}
+table.t th{background:var(--color-background-secondary);padding:6px 7px;text-align:right;font-weight:500;border:0.5px solid var(--color-border-tertiary)}
+table.t th:first-child{text-align:left}
+table.t td{padding:5px 7px;text-align:right;border:0.5px solid var(--color-border-tertiary)}
+table.t td:first-child{text-align:left;font-weight:500}
+table.t tr:nth-child(even) td{background:var(--color-background-secondary)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.pbox{border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:8px}
+.plabel{font-size:11px;font-weight:500;margin-bottom:4px}
+</style>
+
+<div class="wrap">
+  <div class="upload-area" id="dz" onclick="document.getElementById('fi').click()">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+    <div class="upload-title">Drop your .xlsx file here, or click to browse</div>
+    <div class="upload-sub">File may contain multiple sheets</div>
+    <div class="file-ok hidden" id="fileOk"></div>
+  </div>
+  <input type="file" id="fi" accept=".xlsx" style="display:none">
+
+  <div class="row">
+    <div class="fg">
+      <label for="sname">Sheet name</label>
+      <input id="sname" type="text" value="WTmTat" placeholder="e.g. WTmTat">
+    </div>
+    <button class="btn" id="runBtn" disabled onclick="run()">Run fitting</button>
+  </div>
+  <div class="status" id="st"></div>
+
+  <div id="results" class="hidden" style="margin-top:1.5rem">
+
+    <div class="metrics">
+      <div class="metric"><div class="ml">Mean Kd</div><div class="mv" id="mKd">—</div><div class="mu">nM</div></div>
+      <div class="metric"><div class="ml">Std Kd</div><div class="mv" id="sKd">—</div><div class="mu">nM</div></div>
+      <div class="metric"><div class="ml">Mean Fmax</div><div class="mv" id="mFx">—</div><div class="mu">a.u.</div></div>
+      <div class="metric"><div class="ml">Std Fmax</div><div class="mv" id="sFx">—</div><div class="mu">a.u.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Averaged conditions</div>
+      <div style="overflow-x:auto"><table class="t"><thead><tr><th>#</th><th>Io</th><th>±</th><th>I∞</th><th>±</th><th>Fmax</th><th>±</th><th>Kd (nM)</th><th>±</th></tr></thead><tbody id="atb"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">All replicates</div>
+      <div style="overflow-x:auto"><table class="t"><thead><tr><th>#</th><th>Kd (nM)</th><th>±</th><th>Io</th><th>±</th><th>I∞</th><th>±</th><th>Fmax</th><th>±</th></tr></thead><tbody id="rtb"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Overlay</div>
+      <div style="max-width:360px"><canvas id="oc"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Averaged condition plots</div>
+      <div class="pgrid" id="ag"></div>
+    </div>
+
+    <div class="card">
+      <div class="sec">Replicate plots</div>
+      <div class="pgrid" id="rg"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+let wb=null;
+const C=['#1a1a1a','#cc2200','#2a8a00','#cc6600','#aa0077'];
+const CN=['Black','Red','Green','Orange','Magenta'];
+const TAT=20,KD0=50,IO0=10,II0=80;
+const RI=[17,31],RC=[50,64];
+const AI=[33,36,39,42,45],AE=[34,37,40,43,46],AC=[50,53,56,59,62];
+
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])load(e.dataTransfer.files[0])});
+document.getElementById('fi').addEventListener('change',e=>{if(e.target.files[0])load(e.target.files[0])});
+
+function load(f){
+  new FileReader().onload=ev=>{
+    wb=XLSX.read(ev.target.result,{type:'array'});
+    const ok=document.getElementById('fileOk');
+    ok.textContent='✓ '+f.name+'  |  sheets: '+wb.SheetNames.join(', ');
+    ok.classList.remove('hidden');
+    document.getElementById('runBtn').disabled=false;
+    document.getElementById('st').textContent='';
+  };
+  const r=new FileReader();r.onload=ev=>{wb=XLSX.read(ev.target.result,{type:'array'});const ok=document.getElementById('fileOk');ok.textContent='✓ '+f.name+'  |  sheets: '+wb.SheetNames.join(', ');ok.classList.remove('hidden');document.getElementById('runBtn').disabled=false;};r.readAsArrayBuffer(f);
+}
+
+function sheet(name){
+  const ws=wb.Sheets[name];
+  if(!ws)throw new Error('Sheet "'+name+'" not found. Available: '+wb.SheetNames.join(', '));
+  return XLSX.utils.sheet_to_json(ws,{header:1,defval:0});
+}
+function getRows(d,idxs,n=12){return idxs.map(r=>Array.from({length:n},(_,c)=>+d[r-1]?.[c]||0))}
+function getRange(d,a,b,n=12){const o=[];for(let r=a;r<=b;r++)o.push(Array.from({length:n},(_,c)=>+d[r-1]?.[c]||0));return o}
+
+function mdl(TAR,kD,Io,Ii,Tat){const v=TAR+Tat+kD;return Io+(Ii-Io)*(v-Math.sqrt(v*v-4*TAR*Tat))/(2*Tat)}
+
+function fitLM(xs,ys){
+  let kD=KD0,Io=IO0,Ii=II0,lam=0.01;
+  const n=xs.length;
+  const sse=(k,io,ii)=>xs.reduce((s,x,i)=>s+(ys[i]-mdl(x,k,io,ii,TAT))**2,0);
+  const jac=(k,io,ii)=>{const e=1e-6;return xs.map((x,i)=>{const f0=mdl(x,k,io,ii,TAT);return[(mdl(x,k+e,io,ii,TAT)-f0)/e,(mdl(x,k,io+e,ii,TAT)-f0)/e,(mdl(x,k,io,ii+e,TAT)-f0)/e]})};
+  const T=A=>A[0].map((_,c)=>A.map(r=>r[c]));
+  const mm=(A,B)=>A.map(r=>B[0].map((_,c)=>B.reduce((s,_,k)=>s+r[k]*B[k][c],0)));
+  const mv=(M,v)=>M.map(r=>r.reduce((s,x,i)=>s+x*v[i],0));
+  const inv3=m=>{const[[a,b,c],[d,e,f],[g,h,ii]]=m,det=a*(e*ii-f*h)-b*(d*ii-f*g)+c*(d*h-e*g);if(Math.abs(det)<1e-14)return null;return[[(e*ii-f*h)/det,(c*h-b*ii)/det,(b*f-c*e)/det],[(f*g-d*ii)/det,(a*ii-c*g)/det,(c*d-a*f)/det],[(d*h-e*g)/det,(b*g-a*h)/det,(a*e-b*d)/det]]};
+  let best=sse(kD,Io,Ii);
+  for(let it=0;it<2000;it++){
+    const J=jac(kD,Io,Ii),Jt=T(J),JtJ=mm(Jt,J),res=xs.map((x,i)=>ys[i]-mdl(x,kD,Io,Ii,TAT)),Jtr=mv(Jt,res);
+    const A=JtJ.map((r,i)=>r.map((v,j)=>i===j?v*(1+lam):v)),Ai=inv3(A);
+    if(!Ai)break;
+    const d=mv(Ai,Jtr),nk=kD+d[0],nio=Io+d[1],nii=Ii+d[2],ns=sse(nk,nio,nii);
+    if(ns<best){best=ns;kD=nk;Io=nio;Ii=nii;lam*=0.7}else lam*=3;
+    if(Math.abs(d[0])<1e-9&&Math.abs(d[1])<1e-9&&Math.abs(d[2])<1e-9)break;
+  }
+  const J=jac(kD,Io,Ii),Jt=T(J),JtJ=mm(Jt,J),s2=sse(kD,Io,Ii)/Math.max(n-3,1),Ai=inv3(JtJ);
+  const er=Ai?[Math.sqrt(Math.abs(Ai[0][0]*s2)),Math.sqrt(Math.abs(Ai[1][1]*s2)),Math.sqrt(Math.abs(Ai[2][2]*s2))]:[0,0,0];
+  return{kD,Io,Ii,eKd:er[0],eIo:er[1],eIi:er[2]};
+}
+
+const f2=v=>isNaN(v)?'—':v.toFixed(2);
+const f1=v=>isNaN(v)?'—':v.toFixed(1);
+const xPts=Array.from({length:80},(_,i)=>Math.pow(10,-2+i*6/79));
+let charts=[];
+
+function mkChart(id,datasets){
+  const ctx=document.getElementById(id).getContext('2d');
+  const ch=new Chart(ctx,{type:'scatter',data:{datasets},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{type:'logarithmic',min:0.01,max:100000,ticks:{font:{size:9},callback:v=>{const l=Math.log10(v);return Number.isInteger(l)?'10^'+l:''}}},y:{min:-5,max:120,ticks:{font:{size:9}}}},elements:{point:{radius:3}}}});
+  charts.push(ch);return ch;
+}
+
+function run(){
+  if(!wb)return;
+  charts.forEach(c=>c.destroy());charts=[];
+  document.getElementById('results').classList.add('hidden');
+  const name=document.getElementById('sname').value.trim();
+  document.getElementById('st').textContent='Fitting…';
+  setTimeout(()=>{
+    try{
+      const d=sheet(name);
+      const iNorm=getRange(d,RI[0],RI[1]),rConc=getRange(d,RC[0],RC[1]);
+      const iAvg=getRows(d,AI),iErr=getRows(d,AE),cAvg=getRows(d,AC);
+      const data5=iNorm.map((row,i)=>row.map((v,j)=>({x:rConc[i][j],y:v})));
+      const mData=iAvg.map((row,i)=>row.map((v,j)=>({x:cAvg[i][j],y:v})));
+      const nR=data5.length,nA=mData.length;
+
+      const f15=data5.map(pts=>fitLM(pts.map(p=>p.x),pts.map(p=>p.y)));
+      const f5=mData.map(pts=>fitLM(pts.map(p=>p.x),pts.map(p=>p.y)));
+
+      const kds=f5.map(f=>f.kD),fmxs=f5.map(f=>f.Ii-f.Io);
+      const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+      const std=a=>{const m=mean(a);return Math.sqrt(a.map(v=>(v-m)**2).reduce((s,v)=>s+v,0)/Math.max(a.length-1,1))};
+
+      document.getElementById('mKd').textContent=f1(mean(kds));
+      document.getElementById('sKd').textContent=f1(std(kds));
+      document.getElementById('mFx').textContent=f1(mean(fmxs));
+      document.getElementById('sFx').textContent=f1(std(fmxs));
+
+      const atb=document.getElementById('atb');atb.innerHTML='';
+      f5.forEach((f,i)=>{
+        const fx=f.Ii-f.Io,fe=Math.sqrt(f.eIo**2+f.eIi**2);
+        atb.innerHTML+=`<tr><td style="color:${C[i]}">${CN[i]}</td><td>${f2(f.Io)}</td><td>${f2(f.eIo)}</td><td>${f2(f.Ii)}</td><td>${f2(f.eIi)}</td><td>${f2(fx)}</td><td>${f2(fe)}</td><td>${f1(f.kD)}</td><td>${f1(f.eKd)}</td></tr>`;
+      });
+
+      const rtb=document.getElementById('rtb');rtb.innerHTML='';
+      f15.forEach((f,i)=>{
+        const ci=Math.floor(i/3),fx=f.Ii-f.Io,fe=Math.sqrt(f.eIo**2+f.eIi**2);
+        rtb.innerHTML+=`<tr><td style="color:${C[ci]}">${i+1}</td><td>${f1(f.kD)}</td><td>${f1(f.eKd)}</td><td>${f2(f.Io)}</td><td>${f2(f.eIo)}</td><td>${f2(f.Ii)}</td><td>${f2(f.eIi)}</td><td>${f2(fx)}</td><td>${f2(fe)}</td></tr>`;
+      });
+
+      const curve=f=>xPts.map(x=>({x,y:mdl(x,f.kD,f.Io,f.Ii,TAT)}));
+      const overlayDS=[...f5].reverse().flatMap((f,ri)=>{
+        const i=nA-1-ri;
+        return[{type:'line',data:curve(f),borderColor:C[i],borderWidth:2,pointRadius:0,tension:0,fill:false},{type:'scatter',data:mData[i],backgroundColor:C[i],pointRadius:4,showLine:false}];
+      });
+      document.getElementById('oc').id='oc';
+      mkChart('oc',overlayDS);
+
+      const ag=document.getElementById('ag');ag.innerHTML='';
+      f5.forEach((f,i)=>{
+        const div=document.createElement('div');div.className='pbox';
+        div.innerHTML=`<div class="plabel" style="color:${C[i]}">${f1(f.kD)} ± ${f1(f.eKd)} nM</div><canvas id="ac${i}"></canvas>`;
+        ag.appendChild(div);
+        mkChart('ac'+i,[{type:'line',data:curve(f),borderColor:C[i],borderWidth:1.5,pointRadius:0,tension:0,fill:false},{type:'scatter',data:mData[i],backgroundColor:C[i],pointRadius:3,showLine:false}]);
+      });
+
+      const rg=document.getElementById('rg');rg.innerHTML='';
+      f15.forEach((f,i)=>{
+        const ci=Math.floor(i/3);
+        const div=document.createElement('div');div.className='pbox';
+        div.innerHTML=`<div class="plabel" style="color:${C[ci]}">Rep ${i+1}: ${f1(f.kD)} ± ${f1(f.eKd)} nM</div><canvas id="rc${i}"></canvas>`;
+        rg.appendChild(div);
+        mkChart('rc'+i,[{type:'line',data:curve(f),borderColor:C[ci],borderWidth:1.5,pointRadius:0,tension:0,fill:false},{type:'scatter',data:data5[i],backgroundColor:C[ci],pointRadius:3,showLine:false}]);
+      });
+
+      document.getElementById('results').classList.remove('hidden');
+      document.getElementById('st').textContent='';
+    }catch(err){document.getElementById('st').textContent='Error: '+err.message}
+  },50);
+}
+</script>
